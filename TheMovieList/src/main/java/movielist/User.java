@@ -1,6 +1,7 @@
 package movielist;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -48,8 +49,12 @@ public class User {
         return age;
     }
 
+    /**
+     * Returns a copy of the user's favorite movies list to prevent external modifications.
+     * @return A copy of the favoriteMovies list.
+     */
     public List<String> getFavoriteMovies() {
-        return favoriteMovies;
+        return Collections.unmodifiableList(favoriteMovies);
     }
 
     public String getTopFavoriteMovie() {
@@ -70,30 +75,33 @@ public class User {
     }
 
     /**
-     * Adds a movie to the user's favorite movie list.
+     * Adds a movie to the user's favorite movie list after normalizing it.
      * @param movie The movie to add.
-     * @return true if the movie was added successfully, false if the list is already full.
+     * @return true if the movie was added successfully, false if the list is full or duplicate.
      */
     public boolean addFavoriteMovie(String movie) {
         if (favoriteMovies.size() < 10) {
-            favoriteMovies.add(movie);
-            if (topFavoriteMovie == null) {
-                topFavoriteMovie = movie; // Set first added movie as top favorite
+            String normalizedMovie = normalizeMovieTitle(movie);
+            if (!favoriteMovies.contains(normalizedMovie)) {
+                favoriteMovies.add(normalizedMovie);
+                if (topFavoriteMovie == null) {
+                    topFavoriteMovie = normalizedMovie; // Set first added movie as top favorite
+                }
+                return true;
             }
-            return true;
         }
-        return false; // List is full
+        return false; // List is full or duplicate movie
     }
 
     /**
-     * Updates a movie at the specified index.
+     * Updates a movie at the specified index after normalizing the new title.
      * @param index The index of the movie to update (0-based).
      * @param newMovie The new movie name.
      * @return true if the update was successful, false if the index is invalid.
      */
     public boolean updateMovie(int index, String newMovie) {
         if (index >= 0 && index < favoriteMovies.size()) {
-            favoriteMovies.set(index, newMovie);
+            favoriteMovies.set(index, normalizeMovieTitle(newMovie));
             return true;
         }
         return false; // Invalid index
@@ -115,5 +123,23 @@ public class User {
             return true;
         }
         return false; // Invalid index
+    }
+
+    /**
+     * Normalizes a movie title by trimming whitespace and converting to lowercase.
+     * @param movie The movie title to normalize.
+     * @return The normalized movie title.
+     */
+    private String normalizeMovieTitle(String movie) {
+        return movie.trim().toLowerCase();
+    }
+
+    /**
+     * Returns a string representation of the user for display in lists or debugging.
+     * @return A formatted string representation of the user.
+     */
+    @Override
+    public String toString() {
+        return String.format("%s (Age: %d, Email: %s)", userId, age, email);
     }
 }

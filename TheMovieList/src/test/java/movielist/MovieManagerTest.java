@@ -14,9 +14,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MovieManagerTest {
     private MovieManager movieManager;
+    private UserManager userManager; // ✅ Added declaration
     private User testUser;
     private User anotherUser;
-    private Map<String, User> userDatabase;
     private LoginManager loginManager;
 
     /**
@@ -25,14 +25,16 @@ class MovieManagerTest {
      */
     @BeforeEach
     void setUp() {
-        userDatabase = new HashMap<>();
+        userManager = new UserManager();
         testUser = new User("jeremy", "1111", "ihatekieran@succession.com", 45);
         anotherUser = new User("timmy", "2222", "godwhen@oscars.com", 27);
-        userDatabase.put(testUser.getUserId(), testUser);
-        userDatabase.put(anotherUser.getUserId(), anotherUser);
-        movieManager = new MovieManager(userDatabase);
+        userManager.addUser(testUser);
+        userManager.addUser(anotherUser);
+
+        movieManager = new MovieManager(userManager);
         loginManager = new LoginManager();
     }
+
 
     /** CREATE Tests */
 
@@ -59,9 +61,14 @@ class MovieManagerTest {
     void testViewMovieList() {
         movieManager.addMovie(testUser, "Dune");
         List<String> movies = testUser.getFavoriteMovies();
+
+        // Debugging line
+        System.out.println("Stored Movies: " + movies);
+
         assertEquals(1, movies.size(), "Movie list should have 1 movie.");
-        assertEquals("Dune", movies.get(0), "Movie should match.");
+        assertEquals("dune", movies.get(0), "Movie should match.");
     }
+
 
     @Test
     void testViewEmptyMovieList() {
@@ -75,9 +82,14 @@ class MovieManagerTest {
     void testUpdateMovie() {
         movieManager.addMovie(testUser, "Old Movie");
         boolean result = movieManager.updateMovie(testUser, 0, "New Movie");
+
+        // Debugging line
+        System.out.println("Updated Movies: " + testUser.getFavoriteMovies());
+
         assertTrue(result, "Movie should be updated successfully.");
-        assertEquals("New Movie", testUser.getFavoriteMovies().get(0), "Updated movie should match new name.");
+        assertEquals("new movie", testUser.getFavoriteMovies().get(0), "Updated movie should match new name.");
     }
+
 
     @Test
     void testUpdateMovieInvalidIndex() {

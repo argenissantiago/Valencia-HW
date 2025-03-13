@@ -1,7 +1,6 @@
 package movielist;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Manages movie lists for users, allowing them to create, view, update, and delete movies.
@@ -9,15 +8,15 @@ import java.util.stream.Collectors;
  */
 public class MovieManager {
     private Scanner scanner;
-    private Map<String, User> userDatabase;
+    private UserManager userManager;
 
     /**
-     * Constructor to initialize MovieManager with a user database.
-     * @param userDatabase The database of users.
+     * Constructor to initialize MovieManager with a reference to UserManager.
+     * @param userManager The user manager instance.
      */
-    public MovieManager(Map<String, User> userDatabase) {
+    public MovieManager(UserManager userManager) {
         this.scanner = new Scanner(System.in);
-        this.userDatabase = userDatabase;
+        this.userManager = userManager;
     }
 
     /**
@@ -70,10 +69,10 @@ public class MovieManager {
         String choice = scanner.nextLine();
         switch (choice) {
             case "1":
-                updateMovie(user); // Call overloaded method that handles user input
+                updateMovie(user);
                 break;
             case "2":
-                deleteMovie(user); // Call overloaded method that handles user input
+                deleteMovie(user);
                 break;
             case "3":
                 return;
@@ -89,8 +88,12 @@ public class MovieManager {
      * @return true if added successfully, false if the list is full.
      */
     public boolean addMovie(User user, String movie) {
-        return user.addFavoriteMovie(movie);
+        if (user.getFavoriteMovies().size() < 20) {
+            return user.addFavoriteMovie(movie);
+        }
+        return false;
     }
+
 
     /**
      * Updates a movie in the user's list.
@@ -101,6 +104,94 @@ public class MovieManager {
      */
     public boolean updateMovie(User user, int index, String newMovie) {
         return user.updateMovie(index, newMovie);
+    }
+
+    /**
+     * Deletes a movie from the user's list.
+     * @param user The user whose movie will be deleted.
+     * @param index The index of the movie to delete.
+     * @return true if successful, false if the index is invalid.
+     */
+    public boolean deleteMovie(User user, int index) {
+        return user.deleteMovie(index);
+    }
+
+    /**
+     * Finds similarity scores between a user and others based on favorite movies.
+     * @param user The user searching for movie matches.
+     * @return A map of user IDs to similarity scores.
+     */
+    public Map<String, Double> calculateSimilarityScore(User user) {
+        Map<String, Double> similarityScores = new HashMap<>();
+
+        for (User otherUser : userManager.getAllUsers()) {
+            if (!otherUser.equals(user) && !otherUser.getFavoriteMovies().isEmpty()) {
+                List<String> userMovies = new ArrayList<>(user.getFavoriteMovies());
+                List<String> otherMovies = new ArrayList<>(otherUser.getFavoriteMovies());
+
+                // Normalize movie titles before comparison
+                userMovies.replaceAll(String::toLowerCase);
+                otherMovies.replaceAll(String::toLowerCase);
+
+                // Find common movies
+                userMovies.retainAll(otherMovies);
+
+                if (!userMovies.isEmpty()) {
+                    double matchPercentage = (double) userMovies.size() / Math.max(user.getFavoriteMovies().size(), otherUser.getFavoriteMovies().size()) * 100;
+                    similarityScores.put(otherUser.getUserId(), matchPercentage);
+                }
+            }
+        }
+        return similarityScores;
+    }
+
+    /**
+     * Finds and displays movie matches for a given user.
+     * @param user The user searching for movie matches.
+     */
+    public void movieMatches(User user) {
+        Map<String, Double> similarityScores = calculateSimilarityScore(user);
+
+        if (similarityScores.isEmpty()) {
+            System.out.println("No movie matches found.");
+            return;
+        }
+
+        System.out.println("\nMovie Matches:");
+        similarityScores.entrySet()
+                .stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed()) // Sort by highest match percentage
+                .forEach(entry -> System.out.println("Match with " + entry.getKey() + " - Similarity Score: " + String.format("%.2f", entry.getValue()) + "%"));
+    }
+
+    /**
+     * Displays a user's movie list with numbering.
+     * @param user The user whose movie list is displayed.
+     */
+    private void displayMovies(User user) {
+        List<String> movies = user.getFavoriteMovies();
+        for (int i = 0; i < movies.size(); i++) {
+            System.out.println((i + 1) + ". " + movies.get(i));
+        }
+    }
+
+    /**
+     * Gets a valid movie index from user input.
+     * @param maxIndex The maximum valid index.
+     * @return The selected index (0-based), or -1 if input is invalid.
+     */
+    private int getValidIndex(int maxIndex) {
+        try {
+            int choice = Integer.parseInt(scanner.nextLine()) - 1;
+            if (choice < 0 || choice >= maxIndex) {
+                System.out.println("Invalid choice. Returning to home menu.");
+                return -1;
+            }
+            return choice;
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input. Please enter a number.");
+            return -1;
+        }
     }
 
     /**
@@ -133,16 +224,6 @@ public class MovieManager {
     }
 
     /**
-     * Deletes a movie from the user's list.
-     * @param user The user whose movie will be deleted.
-     * @param index The index of the movie to delete.
-     * @return true if successful, false if the index is invalid.
-     */
-    public boolean deleteMovie(User user, int index) {
-        return user.deleteMovie(index);
-    }
-
-    /**
      * Overloaded method for deleting a movie, handles user input.
      * @param user The user deleting a movie.
      */
@@ -163,75 +244,4 @@ public class MovieManager {
             System.out.println("Deletion failed. Please try again.");
         }
     }
-
-    /**
-     * Finds similarity scores between a user and others based on favorite movies.
-     * @param user The user searching for movie matches.
-     * @return A map of user IDs to similarity scores.
-     */
-    public Map<String, Double> calculateSimilarityScore(User user) {
-        Map<String, Double> similarityScores = new HashMap<>();
-
-        for (User otherUser : userDatabase.values()) {
-            if (!otherUser.equals(user) && !otherUser.getFavoriteMovies().isEmpty()) {
-                List<String> commonMovies = new ArrayList<>(user.getFavoriteMovies());
-                commonMovies.retainAll(otherUser.getFavoriteMovies());
-
-                if (!commonMovies.isEmpty()) {
-                    double matchPercentage = (double) commonMovies.size() / Math.min(user.getFavoriteMovies().size(), otherUser.getFavoriteMovies().size()) * 100;
-                    similarityScores.put(otherUser.getUserId(), matchPercentage);
-                }
-            }
-        }
-        return similarityScores;
-    }
-
-    /**
-     * Displays a user's movie list with numbering.
-     * @param user The user whose movie list is displayed.
-     */
-    private void displayMovies(User user) {
-        List<String> movies = user.getFavoriteMovies();
-        for (int i = 0; i < movies.size(); i++) {
-            System.out.println((i + 1) + ". " + movies.get(i));
-        }
-    }
-
-    /**
-     * Gets a valid movie index from user input.
-     * @param maxIndex The maximum valid index.
-     * @return The selected index (0-based), or -1 if input is invalid.
-     */
-    private int getValidIndex(int maxIndex) {
-        try {
-            int choice = Integer.parseInt(scanner.nextLine()) - 1;
-            if (choice < 0 || choice >= maxIndex) {
-                System.out.println("Invalid choice. Returning to home menu.");
-                return -1;
-            }
-            return choice;
-        } catch (NumberFormatException e) {
-            System.out.println("Invalid input. Please enter a number.");
-            return -1;
-        }
-    }
-    /**
-     * Finds and displays movie matches for a given user.
-     * This method is a wrapper around calculateSimilarityScore() to maintain compatibility with Main.java.
-     * @param user The user searching for movie matches.
-     */
-    public void movieMatches(User user) {
-        Map<String, Double> similarityScores = calculateSimilarityScore(user);
-
-        if (similarityScores.isEmpty()) {
-            System.out.println("No movie matches found.");
-            return;
-        }
-
-        System.out.println("\nMovie Matches:");
-        for (Map.Entry<String, Double> entry : similarityScores.entrySet()) {
-            System.out.println("Match with " + entry.getKey() + " - Similarity Score: " + String.format("%.2f", entry.getValue()) + "%");
-        }
-    }
-
 }
