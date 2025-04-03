@@ -1,0 +1,19 @@
+Environment Details: 
+JDK 21
+MySQL Version:9.2.0 (Homebrew)
+JavaFX: 23.0.2
+JDBC Driver: mysql-connector-j-9.1.0.jar
+IDE: IntelliJ 
+
+Instructions:
+1. Open MySQL
+2. Open MovieApp.sql in MySQL tool, run script
+3. Open Project in IntelliJ
+4. Run Main.java
+5. Enter the following for MySQL connection:
+Host: localhost (or your own host)
+Port: 3306 (default, you can use a custom port)
+Database Name: MovieApp (or however you named it)
+Username: your MySQL username
+Password: your MySQL password
+6. Test features
