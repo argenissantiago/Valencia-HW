@@ -1,10 +1,15 @@
 package movielist;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.util.*;
 import java.nio.file.*;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.PreparedStatement;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,8 +18,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Ensures proper functionality of CRUD operations and similarity score calculations.
  */
 class MovieManagerTest {
+    private DatabaseManager dbManager;
     private MovieManager movieManager;
-    private UserManager userManager; // ✅ Added declaration
+    private UserManager userManager;
     private User testUser;
     private User anotherUser;
     private LoginManager loginManager;
@@ -25,15 +31,32 @@ class MovieManagerTest {
      */
     @BeforeEach
     void setUp() {
-        userManager = new UserManager();
-        testUser = new User("jeremy", "1111", "ihatekieran@succession.com", 45);
-        anotherUser = new User("timmy", "2222", "godwhen@oscars.com", 27);
-        userManager.addUser(testUser);
-        userManager.addUser(anotherUser);
+        dbManager = DatabaseManager.getInstance();
+        dbManager.connect("localhost", "3306", "MovieApp", "root", "password");
 
-        movieManager = new MovieManager(userManager);
+        userManager = new UserManager(dbManager);
         loginManager = new LoginManager();
+        movieManager = new MovieManager(userManager, dbManager);
+
+        Connection conn = dbManager.getConnection(); // shared connection
+        try {
+            PreparedStatement ps1 = conn.prepareStatement("DELETE FROM users WHERE username = 'jeremy'");
+            ps1.executeUpdate();
+            ps1.close();
+
+            PreparedStatement ps2 = conn.prepareStatement("DELETE FROM users WHERE username = 'timmy'");
+            ps2.executeUpdate();
+            ps2.close();
+
+            testUser = new User("jeremy", "1111", "ihatekieran@succession.com", 45);
+            anotherUser = new User("timmy", "2222", "godwhen@oscars.com", 27);
+            userManager.addUser(testUser);
+            userManager.addUser(anotherUser);
+        } catch (SQLException e) {
+            System.err.println("Error during setup: " + e.getMessage());
+        }
     }
+
 
 
     /** CREATE Tests */
@@ -134,9 +157,11 @@ class MovieManagerTest {
         assertTrue(similarity.isEmpty(), "There should be no matches.");
     }
 
+
     /** FILE HANDLING Tests */
 
-    @Test
+   /*
+   @Test
     void testFileExists() {
         Path path = Paths.get("src/test/resources/usersample.txt"); // Ensure this is the correct path
         assertTrue(Files.exists(path), "Test file should exist at " + path.toAbsolutePath());
@@ -151,4 +176,10 @@ class MovieManagerTest {
 
         assertFalse(loginManager.getUserDatabase().isEmpty(), "User database should not be empty after loading.");
     }
+    @AfterEach
+    void tearDown() {
+        dbManager.closeConnection();
+    }
+*/
+
 }

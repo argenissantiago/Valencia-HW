@@ -1,27 +1,51 @@
 package movielist;
 
-        import javafx.application.Application;
-        import javafx.geometry.Insets;
-        import javafx.scene.Scene;
-        import javafx.scene.control.*;
-        import javafx.scene.layout.VBox;
-        import javafx.scene.layout.HBox;
-        import javafx.stage.Stage;
-        import javafx.stage.FileChooser;
-        import javafx.beans.property.SimpleStringProperty;
-        import javafx.beans.property.SimpleIntegerProperty;
-        import java.io.File;
-        import java.io.IOException;
-        import java.util.Map;
-        import javafx.scene.control.TextInputDialog;
-        import javafx.scene.control.TableView;
-        import javafx.scene.control.Alert;
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
+import javafx.stage.Stage;
+import javafx.stage.FileChooser;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Map;
+
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.TableView;
+import javafx.scene.control.Alert;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Connection;
+
+
+/**
+ * The {@code UserGUI} class provides a JavaFX-based GUI
+ * for user login, sign-up, file loading, and interaction with
+ * user movie lists and movie match suggestions.
+ * <p>
+ * It uses {@code UserManager} and {@code MovieManager} to interact with
+ * user and movie data, both in-memory and via the database.
+ */
 
 
 public class UserGUI extends Application {
     // UserManager and MovieManager handle user data and movie lists
-    private static UserManager userManager = new UserManager();
-    private static MovieManager movieManager = new MovieManager(userManager);
+    private static UserManager userManager = new UserManager(DatabaseManager.getInstance());
+    private static MovieManager movieManager = new MovieManager(userManager, DatabaseManager.getInstance());
+
     /**
      * Allows external classes to set UserManager and MovieManager instances.
      * This ensures that data persists across the application.
@@ -30,38 +54,85 @@ public class UserGUI extends Application {
         userManager = um;
         movieManager = mm;
     }
+
     /**
      * Starts the JavaFX application by displaying the login screen.
      */
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Movie List - User Login");
+        primaryStage.setTitle("Connect to Database");
+        promptDatabaseConnection(primaryStage);
+    }
 
-        Label usernameLabel = new Label("Username:");
-        TextField usernameField = new TextField();
-        Label pinLabel = new Label("PIN:");
-        PasswordField pinField = new PasswordField();
-        Button loginButton = new Button("Sign In");
-        Button signUpButton = new Button("Sign Up");
-        Button loadFileButton = new Button("Load Users from File");
-        Button exitButton = new Button("Exit");
+    /**
+     * Prompts the user to input MySQL connection details and attempts to connect to the database.
+     * If successful, it loads user data and proceeds to the login screen.
+     *
+     * @param primaryStage the main application stage
+     */
 
-        // Button Actions
-        loginButton.setOnAction(e -> handleLogin(primaryStage, usernameField.getText(), pinField.getText()));
-        signUpButton.setOnAction(e -> handleSignUp(primaryStage, usernameField.getText(), pinField.getText()));
-        loadFileButton.setOnAction(e -> handleFileLoad(primaryStage));
-        exitButton.setOnAction(e -> System.exit(0));
+    public void promptDatabaseConnection(Stage primaryStage) {
+        VBox dbLayout = new VBox(10);
+        dbLayout.setPadding(new Insets(20));
 
-        // Layout
-        VBox layout = new VBox(10);
-        layout.setPadding(new Insets(20));
-        layout.getChildren().addAll(usernameLabel, usernameField, pinLabel, pinField, loginButton, signUpButton, loadFileButton, exitButton);
+        TextField hostField = new TextField("localhost");
+        hostField.setPromptText("MySQL Host (e.g. localhost)");
 
-        Scene scene = new Scene(layout, 350, 300);
+        TextField portField = new TextField("3306");
+        portField.setPromptText("MySQL Port (e.g. 3306)");
+
+        TextField dbNameField = new TextField("MovieApp");
+        dbNameField.setPromptText("Database Name (e.g. MovieApp)");
+
+        TextField userField = new TextField();
+        userField.setPromptText("MySQL Username");
+
+        PasswordField passField = new PasswordField();
+        passField.setPromptText("MySQL Password");
+
+        Button connectButton = new Button("Connect");
+        Label statusLabel = new Label();
+
+        connectButton.setOnAction(e -> {
+            String host = hostField.getText().trim();
+            String port = portField.getText().trim();
+            String dbName = dbNameField.getText().trim();
+            String user = userField.getText().trim();
+            String pass = passField.getText();
+
+            if (host.isEmpty() || port.isEmpty() || dbName.isEmpty() || user.isEmpty()) {
+                statusLabel.setText("All fields except password are required.");
+                return;
+            }
+
+            try {
+                DatabaseManager db = DatabaseManager.getInstance();
+                db.connect(host, port, dbName, user, pass);
+
+                userManager.loadUsersFromDatabase();
+                showLoginScreen(primaryStage);
+            } catch (Exception ex) {
+                statusLabel.setText("Connection failed: " + ex.getMessage());
+            }
+        });
+
+        dbLayout.getChildren().addAll(
+                new Label("Enter MySQL Connection Details:"),
+                hostField, portField, dbNameField, userField, passField,
+                connectButton, statusLabel
+        );
+
+        Scene scene = new Scene(dbLayout, 400, 300);
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
+    /**
+     * Prompts user to enter MySQL connection details and attempts to connect to the database.
+     * If successful, it loads user data and proceeds to the login screen.
+     *
+     * @param primaryStage the main application stage
+     */
 
     private void handleFileLoad(Stage primaryStage) {
         VBox fileLoadLayout = new VBox(15);
@@ -101,12 +172,9 @@ public class UserGUI extends Application {
                 return;
             }
 
-            try {
-                userManager.loadUsersFromFile(filePath);
-                showFileLoadConfirmation(primaryStage);
-            } catch (IOException ex) {
-                showAlert(Alert.AlertType.ERROR, "File Error", "Error loading file: " + ex.getMessage());
-            }
+            userManager.loadUsersFromDatabase();
+            showFileLoadConfirmation(primaryStage);
+
         });
 
         backButton.setOnAction(e -> showLoginScreen(primaryStage));
@@ -116,7 +184,9 @@ public class UserGUI extends Application {
         primaryStage.setScene(fileLoadScene);
     }
 
-
+    /**
+     * Opens a new window displaying a table of loaded users with their username, email, and age.
+     */
 
     private void updateUserTable() {
         Stage stage = new Stage();
@@ -145,23 +215,68 @@ public class UserGUI extends Application {
         stage.setScene(new Scene(layout, 450, 350));
         stage.show();
     }
+
     /**
      * Handles user login and navigates to the user dashboard.
      */
     private void handleLogin(Stage primaryStage, String username, String pin) {
-        if (userManager == null) {
-            showAlert(Alert.AlertType.ERROR, "Error", "UserManager is not initialized.");
+        if (username.isEmpty() || pin.isEmpty()) {
+            showAlert(Alert.AlertType.ERROR, "Login Failed", "Username and PIN cannot be empty.");
             return;
         }
 
-        User user = userManager.getUser(username);
-        if (user != null && user.getHashedPin().equals(pin)) {
-            showAlert(Alert.AlertType.INFORMATION, "Login Successful", "Welcome " + username + "!");
+        final String USER_SQL = "SELECT id, email, age FROM users WHERE username = ? AND pin = ?";
+        final String MOVIES_SQL = "SELECT title FROM movies WHERE user_id = ?";
+
+        try {
+            DatabaseManager db = DatabaseManager.getInstance();
+            Connection conn = db.getConnection();
+
+            // —————— FIRST QUERY: user info ——————
+            int userId;
+            String email;
+            int age;
+            try (PreparedStatement userStmt = conn.prepareStatement(USER_SQL)) {
+                userStmt.setString(1, username);
+                userStmt.setString(2, pin);
+                try (ResultSet rs = userStmt.executeQuery()) {
+                    if (!rs.next()) {
+                        showAlert(Alert.AlertType.ERROR, "Login Failed", "Invalid credentials. Try again.");
+                        return;
+                    }
+                    userId = rs.getInt("id");
+                    email = rs.getString("email");
+                    age = rs.getInt("age");
+                }
+            }
+
+            // —————— SECOND QUERY: favorite movies ——————
+            List<String> favorites = new ArrayList<>();
+            try (PreparedStatement moviesStmt = conn.prepareStatement(MOVIES_SQL)) {
+                moviesStmt.setInt(1, userId);
+                try (ResultSet movieRs = moviesStmt.executeQuery()) {
+                    while (movieRs.next()) {
+                        favorites.add(movieRs.getString("title"));
+                    }
+                }
+            }
+
+            // —————— BUILD USER & LAUNCH UI ——————
+            User user = new User(username, pin, email, age);
+            user.setDatabaseId(userId);
+            favorites.forEach(user::addFavoriteMovie);
+            userManager.addUser(user);
+
+            showAlert(Alert.AlertType.INFORMATION, "Login Successful", "Welcome, " + username + "!");
             openUserDashboard(primaryStage, user);
-        } else {
-            showAlert(Alert.AlertType.ERROR, "Login Failed", "Invalid credentials. Try again.");
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();  // so you’ll see exactly where it fails
+            showAlert(Alert.AlertType.ERROR, "Database Error", "Could not log in: " + ex.getMessage());
         }
     }
+
+
     /**
      * Handles user sign-up process, including email and age input validation.
      */
@@ -199,7 +314,23 @@ public class UserGUI extends Application {
                     return;
                 }
 
-                // Create the new user
+                // Save user in the database
+                try {
+                    DatabaseManager db = DatabaseManager.getInstance();
+                    Connection conn = db.getConnection();
+                    String sql = "INSERT INTO users (username, pin, email, age) VALUES (?, ?, ?, ?)";
+                    PreparedStatement stmt = conn.prepareStatement(sql);
+                    stmt.setString(1, username);
+                    stmt.setString(2, pin);
+                    stmt.setString(3, email);
+                    stmt.setInt(4, age);
+                    stmt.executeUpdate();
+                } catch (SQLException ex) {
+                    showAlert(Alert.AlertType.ERROR, "Database Error", "Could not save user to database: " + ex.getMessage());
+                    return;
+                }
+
+                // Add to memory
                 User newUser = new User(username, pin, email, age);
                 userManager.addUser(newUser);
 
@@ -211,6 +342,7 @@ public class UserGUI extends Application {
             showAlert(Alert.AlertType.ERROR, "Sign Up Failed", "Username already taken.");
         }
     }
+
     private void showAlert(Alert.AlertType type, String title, String message) {
         Alert alert = new Alert(type);
         alert.setTitle(title);
@@ -218,6 +350,15 @@ public class UserGUI extends Application {
         alert.setContentText(message);
         alert.showAndWait();
     }
+
+    /**
+     * Displays the user dashboard with options to view their movie list,
+     * find matches with other users, or log out.
+     *
+     * @param primaryStage the main application stage
+     * @param user         the currently logged-in user
+     */
+
     private void openUserDashboard(Stage primaryStage, User user) {
         VBox dashboard = new VBox(10);
         dashboard.setPadding(new Insets(20));
@@ -237,6 +378,15 @@ public class UserGUI extends Application {
         Scene dashboardScene = new Scene(dashboard, 350, 300);
         primaryStage.setScene(dashboardScene);
     }
+
+    /**
+     * Opens a new window displaying the user's movie list in a table,
+     * along with options to add, update, or delete movies.
+     *
+     * @param primaryStage the main application stage
+     * @param user         the currently logged-in user
+     */
+
     private void openMovieList(Stage primaryStage, User user) {
         Stage movieStage = new Stage();
         movieStage.setTitle(user.getUserId() + "'s Movie List");
@@ -273,6 +423,15 @@ public class UserGUI extends Application {
         movieStage.setScene(scene);
         movieStage.show();
     }
+
+    /**
+     * Displays a new window with a list of users and their movie similarity scores
+     * compared to the current user.
+     *
+     * @param primaryStage the main application stage
+     * @param user         the currently logged-in user
+     */
+
     private void showMovieMatches(Stage primaryStage, User user) {
         Stage matchStage = new Stage();
         matchStage.setTitle("Movie Matches for " + user.getUserId());
@@ -302,6 +461,14 @@ public class UserGUI extends Application {
         matchStage.setScene(scene);
         matchStage.show();
     }
+
+    /**
+     * Creates the login/sign-up scene with input fields and buttons for interaction.
+     *
+     * @param primaryStage the main application stage
+     * @return the constructed {@code Scene} for login and registration
+     */
+
     private Scene createLoginScene(Stage primaryStage) {
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(20));
@@ -324,6 +491,14 @@ public class UserGUI extends Application {
 
         return new Scene(layout, 350, 300);
     }
+
+    /**
+     * Prompts the user to add a new movie and updates both the table and database.
+     *
+     * @param user  the currently logged-in user
+     * @param table the table displaying the user's favorite movies
+     */
+
     private void addMovie(User user, TableView<String> table) {
         TextInputDialog dialog = new TextInputDialog();
         dialog.setTitle("Add Movie");
@@ -331,7 +506,7 @@ public class UserGUI extends Application {
         String newMovie = dialog.showAndWait().orElse("").trim();
 
         if (!newMovie.isEmpty()) {
-            boolean added = user.addFavoriteMovie(newMovie);
+            boolean added = movieManager.addMovie(user, newMovie);
             if (added) {
                 table.getItems().setAll(user.getFavoriteMovies());
             } else {
@@ -339,6 +514,14 @@ public class UserGUI extends Application {
             }
         }
     }
+
+    /**
+     * Prompts the user to update the selected movie in the list.
+     *
+     * @param user  the logged-in user
+     * @param table the table displaying the user's favorite movies
+     */
+
     private void updateMovie(User user, TableView<String> table) {
         String selectedMovie = table.getSelectionModel().getSelectedItem();
         if (selectedMovie == null) {
@@ -353,13 +536,22 @@ public class UserGUI extends Application {
 
         if (!newMovie.isEmpty()) {
             int index = user.getFavoriteMovies().indexOf(selectedMovie);
-            if (index != -1) {
-                user.updateMovie(index, newMovie);
+            boolean success = movieManager.updateMovie(user, index, newMovie);
+            if (success) {
                 table.getItems().setAll(user.getFavoriteMovies());
+            } else {
+                showAlert(Alert.AlertType.ERROR, "Update Failed", "Could not update movie.");
             }
-
         }
     }
+
+    /**
+     * Deletes the selected movie from the user's movie list and updates the display.
+     *
+     * @param user  the currently logged-in user
+     * @param table the table displaying the user's favorite movies
+     */
+
     private void deleteMovie(User user, TableView<String> table) {
         String selectedMovie = table.getSelectionModel().getSelectedItem();
         if (selectedMovie == null) {
@@ -368,11 +560,14 @@ public class UserGUI extends Application {
         }
 
         int index = user.getFavoriteMovies().indexOf(selectedMovie);
-        if (index != -1) {
-            user.deleteMovie(index);
+        boolean success = movieManager.deleteMovie(user, index);
+        if (success) {
             table.getItems().setAll(user.getFavoriteMovies());
+        } else {
+            showAlert(Alert.AlertType.ERROR, "Delete Failed", "Could not remove movie.");
         }
     }
+
     /**
      * Displays the login/sign-up screen.
      */
@@ -400,6 +595,7 @@ public class UserGUI extends Application {
         Scene loginScene = new Scene(loginLayout, 350, 350);
         primaryStage.setScene(loginScene);
     }
+
     /**
      * Displays a confirmation message after successfully loading users.
      */
@@ -416,7 +612,5 @@ public class UserGUI extends Application {
         Scene confirmationScene = new Scene(messageLayout, 350, 200);
         primaryStage.setScene(confirmationScene);
     }
-
-
 
 }
